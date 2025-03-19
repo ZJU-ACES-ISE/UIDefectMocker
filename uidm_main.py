@@ -9,24 +9,55 @@ from uidm.ui_defects import UIDefectInjection, strategies
 
 configs = load_config()
 
+difficulties = {
+    'simple': 1,
+    'medium': 2,
+    'hard': 5
+}
 
-def ui_defect_mocker(screenshot_path, ui_positions, ui_texts, selected=None):
+
+def ui_defect_mocker(screenshot_path, ui_positions, ui_texts, difficulty=None, selected=None):
+    injected_defect = {
+        "idx": selected,
+        "strategy": "",
+        "selected": [],
+    }
     uidi = UIDefectInjection(screenshot_path, ui_positions, ui_texts)
-    if selected:
-        uidi.selected = selected
+    if difficulty:
+        uidi.difficulty = difficulty
     selected_strategy = random.choice(configs["STRATEGY"])
+    if len(uidi.ui_positions) == 0:
+        return uidi
+    defect_cnt = difficulties[uidi.difficulty]
     if "CONTENT" in selected_strategy:
         non_empty_text_indices = [idx for idx, text in enumerate(uidi.ui_texts) if text.strip()]
         if non_empty_text_indices:
-            uidi.selected = random.choice(non_empty_text_indices)
+            while defect_cnt > 0 and non_empty_text_indices:
+                uidi.selected = random.choice(non_empty_text_indices)
+                non_empty_text_indices.remove(uidi.selected)
+                strategies[selected_strategy](uidi)
+                defect_cnt -= 1
+                injected_defect["selected"].append(f"{uidi.selected}|{ui_positions[uidi.selected]}")
         else:
             selected_strategy = random.choice(configs["STRATEGY"][2:])
-            uidi.selected = random.choice(range(len(uidi.ui_positions)))
+            while defect_cnt > 0:
+                uidi.selected = random.choice(range(len(uidi.ui_positions)))
+                strategies[selected_strategy](uidi)
+                defect_cnt -= 1
+                injected_defect["selected"].append(f"{uidi.selected}|{ui_positions[uidi.selected]}")
     else:
-        uidi.selected = random.choice(range(len(uidi.ui_positions)))
-    strategies[selected_strategy](uidi)
+        while defect_cnt > 0:
+            uidi.selected = random.choice(range(len(uidi.ui_positions)))
+            strategies[selected_strategy](uidi)
+            defect_cnt -= 1
+            injected_defect["selected"].append(f"{uidi.selected}|{ui_positions[uidi.selected]}")
 
-    uidi.injected_defect = f'{selected_strategy}|{uidi.selected}|{uidi.ui_positions[uidi.selected]}'
+        # uidi.selected = random.choice(range(len(uidi.ui_positions)))
+    # strategies[selected_strategy](uidi)
+    injected_defect['selected'] = list(dict.fromkeys(injected_defect['selected']))
+    injected_defect['strategy'] = selected_strategy
+    uidi.injected_defect = injected_defect
+    # uidi.injected_defect = f'{selected_strategy}|{uidi.selected}|{uidi.ui_positions[uidi.selected]}'
     if configs["OUTPUT_WITH_LABELED"]:
         uidi.labeled_path = os.path.join(configs['SAVED_DIR'], f"labeled_{os.path.basename(uidi.image_path)}")
         labeled = utils.screenshot_labeled(uidi)

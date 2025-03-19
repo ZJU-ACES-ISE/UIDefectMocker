@@ -93,3 +93,7 @@ pyvenv.cfg
 .idea/
 *.iml
 out/
+
+data
+Defective_Open_Source
+Defective_Close_Source

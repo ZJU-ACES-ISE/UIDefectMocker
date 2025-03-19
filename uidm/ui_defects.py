@@ -1,5 +1,8 @@
+import glob
+import json
 import os
 import random
+import shutil
 import uuid
 from dataclasses import dataclass
 from typing import Tuple, List
@@ -10,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 import config
 
 configs = config.load_config()
-
+Image.MAX_IMAGE_PIXELS = None
 
 def identify_el_size(img_size, bbox):
     """
@@ -112,6 +115,8 @@ class UIDefectInjection:
     injected_defect: str = ""
     labeled_path: str = ""
     selected: int = 0
+    # simple medium hard
+    difficulty: str = "simple"
 
     def __post_init__(self):
         self.alignment_el = identify_aligned_groups(self.ui_positions)
@@ -135,7 +140,7 @@ def el_repeat_content(uidi: UIDefectInjection):
     x_add = center_x + x_offset
     y_add = center_y + y_offset
     draw = ImageDraw.Draw(screenshot)
-    font = ImageFont.truetype(configs["FONT_PATH"], int(y2 - y1))
+    font = ImageFont.truetype(configs["FONT_PATH"], int(y2 - y1) // 2.5)
     draw.text((x_add, y_add), uidi.ui_texts[uidi.selected], fill=(57, 57, 57), font=font)
     screenshot.save(uidi.image_path)
 
@@ -151,7 +156,7 @@ def el_replace_content(uidi: UIDefectInjection):
     x1, y1, x2, y2 = uidi.ui_positions[uidi.selected]
     el_width, el_height = x2 - x1, y2 - y1
     cropped = screenshot.crop((x1, y1, x2, y2))
-    font = ImageFont.truetype(configs["FONT_PATH"], int(el_height))
+    font = ImageFont.truetype(configs["FONT_PATH"], int(el_height) // 2.5)
     draw = ImageDraw.Draw(cropped)
     text_bbox = draw.textbbox((0, 0), text, font=font)
     text_x = (el_width - (text_bbox[2] - text_bbox[0])) // 2
@@ -170,7 +175,15 @@ def el_missing_blank(uidi: UIDefectInjection):
     :return:
     """
     screenshot = Image.open(uidi.image_path)
+    screenshot_width, screenshot_height = screenshot.size
     x1, y1, x2, y2 = uidi.ui_positions[uidi.selected]
+    # 确保裁剪区域在图片范围内
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(screenshot_width, x2), min(screenshot_height, y2)
+    # 确保 x2 > x1 和 y2 > y1，否则返回
+    if x1 >= x2 or y1 >= y2:
+        print(f"Invalid crop dimensions: [{x1}, {y1}, {x2}, {y2}], skipping blanking.")
+        return False
     cropped = screenshot.crop((x1, y1, x2, y2))
     tmp_dir = './tmp'
     if not os.path.exists(tmp_dir):
@@ -179,6 +192,7 @@ def el_missing_blank(uidi: UIDefectInjection):
     draw = ImageDraw.Draw(screenshot)
     draw.rectangle((x1, y1, x2, y2), fill=get_dominant_color(cropped))
     screenshot.save(uidi.image_path)
+    return True
 
 
 def el_missing_broken_img(uidi: UIDefectInjection):
@@ -187,7 +201,9 @@ def el_missing_broken_img(uidi: UIDefectInjection):
     :param uidi: UIDefectInjection
     :return:
     """
-    el_missing_blank(uidi)
+    blank = el_missing_blank(uidi)
+    if not blank:
+        return
     broken_img_dir = os.path.join(configs["RESOURCE_DIR"], "broken_images")
     broken_imgs = [f for f in os.listdir(broken_img_dir) if f.endswith(('png', 'jpg', 'jpeg'))]
     if not broken_imgs:
@@ -213,8 +229,13 @@ def el_missing_broken_img(uidi: UIDefectInjection):
     center_x, center_y = x1 + el_width // 2, y1 + el_height // 2
     new_x1 = max(0, center_x - broken_img_w // 2)
     new_y1 = max(0, center_y - broken_img_h // 2)
-    uidi.ui_positions[uidi.selected] = (0, 0, 0, 0)
+    # 读取截图
     screenshot = Image.open(uidi.image_path)
+    screenshot_width, screenshot_height = screenshot.size
+    # 限制粘贴区域不超出截图范围
+    new_x1 = min(new_x1, screenshot_width - broken_img_w)
+    new_y1 = min(new_y1, screenshot_height - broken_img_h)
+    # uidi.ui_positions[uidi.selected] = [0, 0, 0, 0]
     screenshot.paste(broken_img, (new_x1, new_y1))
     screenshot.save(uidi.image_path)
 
@@ -238,7 +259,7 @@ def el_overlapping(uidi: UIDefectInjection):
         x_add, y_add = (x2 - x1) // 2, (y2 - y1) // 2
     else:
         x_add, y_add = (x2 - x1) // 4, (y2 - y1) // 4
-    uidi.ui_positions[uidi.selected] = (x1 + x_add, y1 + y_add, x2 + x_add, y2 + y_add)
+    uidi.ui_positions[uidi.selected] = [int(x1 + x_add), int(y1 + y_add), int(x2 + x_add), int(y2 + y_add)]
     screenshot.paste(cropped, (int(x1 + x_add), int(y1 + y_add)))
     screenshot.save(uidi.image_path)
 
@@ -255,9 +276,9 @@ def el_scaling(uidi: UIDefectInjection):
     w, h = screenshot.size
     x1, y1, x2, y2 = uidi.ui_positions[uidi.selected]
     el_width, el_height = x2 - x1, y2 - y1
-    scale_down = random.uniform(0.65, 0.85)
-    scale_up_medium = random.uniform(1.15, 1.35)
-    scale_up = random.uniform(1.35, 1.5)
+    scale_down = random.uniform(0.5, 0.65)
+    scale_up_medium = random.uniform(1.25, 1.5)
+    scale_up = random.uniform(1.5, 1.75)
     el_size = identify_el_size(screenshot.size, (x1, y1, x2, y2))
     if el_size == "LARGE":
         new_width, new_height = max(0, int(el_width * scale_down)), max(0, int(el_height * scale_down))
@@ -274,7 +295,7 @@ def el_scaling(uidi: UIDefectInjection):
     new_y1 = max(0, center_y - new_height // 2)
     new_x2 = min(w, new_x1 + new_width)
     new_y2 = min(h, new_y1 + new_height)
-    uidi.ui_positions[uidi.selected] = (new_x1, new_y1, new_x2, new_y2)
+    uidi.ui_positions[uidi.selected] = [int(new_x1), int(new_y1), int(new_x2), int(new_y2)]
     resized_w, resized_h = new_x2 - new_x1, new_y2 - new_y1
     if resized_w != new_width or resized_h != new_height:
         resized = resized.resize((resized_w, resized_h))
@@ -357,6 +378,25 @@ def uneven_space(uidi: UIDefectInjection):
     el_missing_blank(uidi)
 
 
+def unexpected_task_result(uidi: UIDefectInjection):
+    image_path = uidi.image_path
+    pre_img = image_path.replace("_1.png", "_0.png")
+    selected = image_path.replace("_0.png", "_1.png")
+    non_selected = [pre_img, selected]
+    all_imgs = glob.glob(f"{os.path.dirname(image_path)}/*.png")
+    filtered = [x for x in all_imgs if x not in non_selected]
+    if not filtered:
+        return
+    shutil.copy(random.choice(filtered), selected)
+
+
+def operation_no_response(uidi: UIDefectInjection):
+    image_path = uidi.image_path
+    fir_img = image_path.replace("_1.png", "_0.png")
+    sec_img = image_path.replace("_0.png", "_1.png")
+    shutil.copy(fir_img, sec_img)
+
+
 strategies = {
     "CONTENT_ERROR": el_replace_content,
     "CONTENT_REPEAT": el_repeat_content,
@@ -365,5 +405,7 @@ strategies = {
     "EL_MISSING_BLANK": el_missing_blank,
     "EL_MISSING_BROKEN_IMG": el_missing_broken_img,
     "EL_MISALIGNED": el_misaligned,
-    "UNEVEN_SPACE": uneven_space
+    "UNEVEN_SPACE": uneven_space,
+    "UNEXPECTED_TASK_RESULT": unexpected_task_result,
+    "OPERATION_NO_RESPONSE": operation_no_response
 }

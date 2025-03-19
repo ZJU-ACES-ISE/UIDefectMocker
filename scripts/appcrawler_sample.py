@@ -1,13 +1,17 @@
+import ast
 import glob
 import json
 import os
+import random
 import shutil
 import sys
 import xml.etree.ElementTree as ET
 from lxml import etree
 
 from config import load_config
-from uidm.utils import extract_xml
+from uidm.ui_defects import UIDefectInjection
+from uidm.utils import extract_xml, copy_walk_dir
+from uidm_main import ui_defect_mocker
 
 configs = load_config()
 
@@ -102,13 +106,37 @@ def pre_processing(input_dir, package_name):
                     shutil.copy(fir_xml, f'{saved_dir}/{clickedIndex}_0.xml')
             shutil.copy(sec_xml, f'{saved_dir}/{clickedIndex}_1.xml')
             testcase['action_bbox'] = str(find_action_bbox(fir_xml, testcase['xpath']))
-            el_list_before = extract_xml(fir_xml)
-            el_list_after = extract_xml(sec_xml)
-            testcase['ui_positions'] = [str([el.bbox for el in el_list_before]), str([el.bbox for el in el_list_after])]
-            testcase['ui_text'] = [str([el.text for el in el_list_before]), str([el.text for el in el_list_after])]
+            # el_list_before = extract_xml(fir_xml)
+            # el_list_after = extract_xml(sec_xml)
+            # testcase['ui_positions'] = [str([el.bbox for el in el_list_before]), str([el.bbox for el in el_list_after])]
+            # testcase['ui_text'] = [str([el.text for el in el_list_before]), str([el.text for el in el_list_after])]
+            # testcase['ui_type'] = [str([el.type for el in el_list_before]), str([el.type for el in el_list_after])]
 
         with open(f'{saved_dir}/{classname}.json', 'w') as f:
             json.dump(testcases, f, indent=4, ensure_ascii=False)
+
+
+import json
+
+def re_processing(ori_dir, clickIndex, item):
+    def process_xml(xml_path):
+        elements = extract_xml(xml_path) if xml_path else []
+        return {
+            "ui_positions": json.dumps([el.bbox for el in elements]),
+            "ui_text": json.dumps([el.text for el in elements]),
+            "ui_type": json.dumps([el.type for el in elements])
+        }
+
+    fir_xml = f"{ori_dir}/{clickIndex}_0.xml"
+    sec_xml = f"{ori_dir}/{clickIndex}_1.xml"
+
+    before_data = process_xml(fir_xml)
+    after_data = process_xml(sec_xml)
+
+    item["ui_positions"] = [before_data["ui_positions"], after_data["ui_positions"]]
+    item["ui_text"] = [before_data["ui_text"], after_data["ui_text"]]
+    item["ui_type"] = [before_data["ui_type"], after_data["ui_type"]]
+
 
 
 def extract_appcrawler_data(input_dir, package_name):
@@ -121,15 +149,48 @@ def extract_appcrawler_data(input_dir, package_name):
     pass
 
 
+def uimocker():
+    input_dir = configs['INPUT_DIR']
+    saved_dir = configs['SAVED_DIR']
+    copy_walk_dir(input_dir, saved_dir)
+    root_dir, package_name = saved_dir.split('/')[-2:]
+    subdirs = get_subdirectories(saved_dir)
+    for sub in subdirs:
+        if sub == '':
+            continue
+        subpath = f'{saved_dir}/{sub}'
+        ori_path = f'{input_dir}/{sub}'
+        with open(f'{subpath}/{package_name}.{sub}.json', 'r') as f:
+            json_data = json.load(f)
+            json_data = [{**item, "ui_type": ""} for item in json_data]
+            json_data = [{**item, "injected_defect": ""} for item in json_data]
+        for item in json_data:
+            if item['clickedIndex'] == '0':
+                json_data.remove(item)
+                continue
+            re_processing(ori_path, item['clickedIndex'], item)
+            print(f"#{item['clickedIndex']} Reprocessed {item['ui_type']} for {sub}")
+            item['imgs_path'] = [img_path.replace('original_cs_data', 'Defective_Close_Source') for img_path in
+                                 item['imgs_path']]
+            if len(item['imgs_path']) < 2 or item['action'] == "":
+                json_data.remove(item)
+                continue
+            selected = 1
+            item['ui_positions'] = [ui.replace('(', '[').replace(')', ']') for ui in item['ui_positions']]
+            ui_positions = json.loads(item['ui_positions'][1])
+            ui_texts = ast.literal_eval(item['ui_text'][1])
+            if len(ui_positions) < 2:
+                selected = 0
+                ui_positions = json.loads(item['ui_positions'][0])
+                ui_texts = ast.literal_eval(item['ui_text'][0])
+            uidi = ui_defect_mocker(item['imgs_path'][selected], ui_positions, ui_texts, difficulty='medium', selected=selected)
+            item['ui_positions'][selected] = json.dumps(uidi.ui_positions)
+            item['injected_defect'] = uidi.injected_defect
+
+        with open(f'{subpath}/{package_name}.{sub}.json', 'w') as f:
+            json.dump(json_data, f, indent=4, ensure_ascii=False)
+        print(f"Injected Defects for {sub}")
+
+
 if __name__ == '__main__':
-    root_dir = sys.argv[1]
-    subdirectories = get_subdirectories(root_dir)
-    for subdir in subdirectories:
-        package_name = '_'.join(subdir.split('_')[1:])
-        configs['INPUT_DIR'] = f'../{root_dir}/{subdir}'
-        configs['SAVED_DIR'] = f'../original_cs_data/{package_name}'
-        input_dir = configs['INPUT_DIR']
-        pre_processing(input_dir, package_name)
-        print("Pre Processing Successfully for ", subdir)
-        extract_appcrawler_data(input_dir, package_name)
-        print("Extract AppCrawler Data Successfully for ", subdir)
+    uimocker()

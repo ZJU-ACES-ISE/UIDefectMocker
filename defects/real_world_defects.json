@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "title": "",
+    "description": "This is a bug",
+    "type": "UI/functionality/suggestion",
+    "reproduce": "100%",
+    "priority": "o1",
+    "reproduceSteps": "1. Open the app\n2. Click on the button\n3. See the bug",
+    "precondition": "The app should be installed",
+    "expected": "The app should not crash",
+    "actual": "The app crashes",
+    "screenshots": [
+      ""
+    ],
+    "release_link": "",
+    "apk_link": "",
+    "app_info": {
+      "app_name": "Sample App",
+      "app_version": "1.0",
+      "app_package": "com.sample.app"
+    },
+    "device_info": {
+      "device_name": "Samsung Galaxy S9",
+      "device_model": "SM-G960F",
+      "device_os": "Android 34",
+      "device_os_version": ""
+    }
+  }
+]

@@ -38,7 +38,7 @@ def check_inside(x, y, bbox_array):
     return None, None
 
 
-def extract_aitz_data():
+def extract_aitw_data():
     input_dir = configs['INPUT_DIR']
     saved_dir = configs['SAVED_DIR']
     copy_walk_dir(input_dir, saved_dir)
@@ -47,13 +47,13 @@ def extract_aitz_data():
         json_data = json.load(f)
     json_data = [{**item, "injected_defect": ""} for item in json_data]
     item_len = len(json_data)
-    if item_len < 3:
+    if item_len <= 3:
         return
     if item_len > 8:
         count = 3
     else:
         count = 2 if item_len > 5 else 1
-    selected = [random.randint(0, item_len - 2)]
+    selected = [random.randint(1, item_len - 2)]
     flag = True
     while count > 0:
         tmp = random.choice([x for x in range(0, item_len - 1) if x not in selected])
@@ -80,9 +80,12 @@ def extract_aitz_data():
         else:
             uidi = UIDefectInjection(img_path, ui_positions, ui_texts)
         item['ui_positions'] = str(uidi.ui_positions)
+        item['image_path'] = uidi.image_path
         if configs["OUTPUT_WITH_LABELED"]:
             uidi.labeled_path = os.path.join(configs['SAVED_DIR'], f"labeled_{os.path.basename(uidi.image_path)}")
-            labeled = utils.screenshot_labeled(uidi)
+            y, x = json.loads(item['result_touch_yx'])
+            tmp_idx, selected_coords = check_inside(x, y, ui_positions)
+            labeled = utils.screenshot_labeled(uidi, extra=[selected_coords])
             labeled.save(uidi.labeled_path)
             item['labeled_path'] = uidi.labeled_path
     with open(json_path, 'w', encoding='utf-8') as f:
@@ -90,4 +93,4 @@ def extract_aitz_data():
 
 
 if __name__ == '__main__':
-    extract_aitz_data()
+    extract_aitw_data()

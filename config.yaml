@@ -1,13 +1,20 @@
-INPUT_DIR: "sample/xxx"
-SAVED_DIR: "saved/xxx"
-XML_DIR: "sample/xml/"
-STRATEGY: ["CONTENT_ERROR", "CONTENT_REPEAT", "EL_OVERLAPPING", "EL_SCALING", "EL_MISSING_BLANK", "EL_MISSING_BROKEN_IMG", "EL_MISALIGNED", "UNEVEN_SPACE"]
-OUTPUT_WITH_LABELED: True
-JSON_RECORD: True
-
-RESOURCE_DIR: "./resources"
-FONT_PATH: "./resources/Roboto-Regular.ttf"
-FONT_SIZE: 32
-GARBLED_CONTENT: ['����', 'nullnull']
-DARK_MODE: False
-MIN_DIST: 30 # The minimum distance between elements to prevent overlapping during the labeling process
+DARK_MODE: false
+FONT_PATH: ./resources/Roboto-Regular.ttf
+FONT_SIZE: 12
+GARBLED_CONTENT:
+- "\uFFFD\uFFFD\uFFFD\uFFFD"
+- nullnull
+INPUT_DIR: original_os_data/ca.rmen.nounours
+JSON_RECORD: false
+MIN_DIST: 30
+OUTPUT_WITH_LABELED: false
+RESOURCE_DIR: ./resources
+SAVED_DIR: Defective_Open_Source/ca.rmen.nounours
+STRATEGY:
+- CONTENT_ERROR
+- CONTENT_REPEAT
+- EL_OVERLAPPING
+- EL_SCALING
+- EL_MISSING_BLANK
+- EL_MISSING_BROKEN_IMG
+XML_DIR: sample/xml/
