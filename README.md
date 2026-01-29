@@ -16,19 +16,15 @@ UIDefectMocker is designed to inject various UI **display** defects into mobile 
 - **UNEVEN_SPACE**: Covers a row of elements with a blank space in the center.
 
 ## 🛠Installation
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/sesuii/uidefectmocker.git
-    ```
-2. Navigate to the project directory:
+1. Navigate to the project directory:
     ```sh
     cd UIDefectMocker
     ```
-3. Initialize Poetry in the project:
+2. Initialize Poetry in the project:
     ```sh
     poetry init
     ```
-4. Install the required dependencies:
+3. Install the required dependencies:
     ```sh
     poetry install
     ```
@@ -58,7 +54,3 @@ GARBLED_CONTENT: ['����', 'nullnull']
 DARK_MODE: false
 MIN_DIST: 30
 ```
-
-## 📝TODO
-- [ ] According to the screenshot size, automatically adjust the `screen_labeled` related parameters (`font_size`, `thickness`).
-- [ ] Strategy: `UNEVEN_SPACE` use a rectangle(screenshot_width, screenshot / 10) scan the screen?

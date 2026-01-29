@@ -2,7 +2,7 @@
 name = "uidefectmocker"
 version = "0.1.0"
 description = ""
-authors = ["sophiesg <sjiahui27@gmail.com>"]
+authors = [""]
 readme = "README.md"
 
 [tool.poetry.dependencies]
